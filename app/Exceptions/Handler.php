@@ -8,6 +8,7 @@ use Illuminate\Validation\ValidationException;
 use Laravel\Lumen\Exceptions\Handler as ExceptionHandler;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
+use Illuminate\Http\JsonResponse;
 
 class Handler extends ExceptionHandler
 {
@@ -25,8 +26,6 @@ class Handler extends ExceptionHandler
 
     /**
      * Report or log an exception.
-     *
-     * This is a great spot to send exceptions to Sentry, Bugsnag, etc.
      *
      * @param  \Throwable  $exception
      * @return void
@@ -47,8 +46,58 @@ class Handler extends ExceptionHandler
      *
      * @throws \Throwable
      */
-    public function render($request, Throwable $exception)
+    public function render($request, Throwable $exception): JsonResponse
     {
-        return parent::render($request, $exception);
+        // Handle Validation Errors (422)
+        if ($exception instanceof ValidationException) {
+            return response()->json([
+                'status' => 422,
+                'error' => 'Validation Error',
+                'message' => $exception->validator->errors(),
+            ], 422);
+        }
+
+        // Handle Model Not Found (404)
+        if ($exception instanceof ModelNotFoundException) {
+            return response()->json([
+                'status' => 404,
+                'error' => 'Not Found',
+                'message' => 'The requested resource could not be found.',
+            ], 404);
+        }
+
+        // Handle Authorization Errors (403)
+        if ($exception instanceof AuthorizationException) {
+            return response()->json([
+                'status' => 403,
+                'error' => 'Forbidden',
+                'message' => 'You do not have permission to access this resource.',
+            ], 403);
+        }
+
+        if ($exception instanceof HttpException) {
+            $status = $exception->getStatusCode();
+        
+            if ($status === 401) {
+                return response()->json([
+                    'status' => 401,
+                    'error' => 'Unauthorized',
+                    'message' => $exception->getMessage() ?: 'Token not provided or invalid.'
+                ], 401);
+            }
+        
+            return response()->json([
+                'status' => $status,
+                'error' => 'HTTP Error',
+                'message' => $exception->getMessage() ?: 'An error occurred.',
+            ], $status);
+        }        
+
+        // Handle Unexpected Errors (500)
+        return response()->json([
+            'status' => 500,
+            'error' => 'Server Error',
+            'message' => env('APP_DEBUG') ? $exception->getMessage() : 'An unexpected error occurred.',
+        ], 500);
     }
 }

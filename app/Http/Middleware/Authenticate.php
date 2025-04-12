@@ -33,12 +33,19 @@ class Authenticate
      * @param  string|null  $guard
      * @return mixed
      */
-    public function handle($request, Closure $next, $guard = null)
+    public function handle($request, Closure $next)
     {
-        if ($this->auth->guard($guard)->guest()) {
-            return response('Unauthorized.', 401);
+        $token = $request->header('Authorization');
+    
+        if (!$token || $token !== 'your-token-value') {
+            return response()->json([
+                'status' => 401,
+                'error' => 'Unauthorized',
+                'message' => 'Token not provided or invalid.'
+            ], 401);
         }
-
+    
         return $next($request);
     }
+    
 }
